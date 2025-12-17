@@ -50,14 +50,58 @@
       </section>
 
       <section class="block">
-        <label class="checkbox">
-          <input type="checkbox" v-model="useRoleModel.value" />
-          <span>为地主 / 农民单独配置模型</span>
-        </label>
-        <label class="checkbox">
-          <input type="checkbox" v-model="useBreakerPrompt.value" />
-          <span>启用“破限”提示词</span>
-        </label>
+        <div class="block-head">
+          <div>
+            <div class="block-title">玩家（我）模型</div>
+            <p class="hint">为自己代打时使用，厂商与配置与 AI 相同。</p>
+          </div>
+          <div class="block-actions">
+            <button class="secondary" :disabled="testState.self.loading" @click="testConfig('self', self)">
+              {{ testState.self.loading ? '测试中...' : '测试玩家模型' }}
+            </button>
+            <span class="test-message" v-if="testState.self.message">{{ testState.self.message }}</span>
+          </div>
+        </div>
+        <div class="form-grid cols-4">
+          <label>
+            <span>厂商</span>
+            <select v-model="self.vendor" @change="applyPreset(self)">
+              <option value="openai">OpenAI 官方</option>
+              <option value="openai-custom">OpenAI 兼容</option>
+              <option value="gemini">Gemini 官方</option>
+              <option value="gemini-custom">Gemini 自定义</option>
+            </select>
+          </label>
+          <label>
+            <span>API Base URL</span>
+            <input v-model="self.baseUrl" placeholder="https://api.openai.com 或 https://generativelanguage.googleapis.com" />
+          </label>
+          <label>
+            <span>API Key</span>
+            <input v-model="self.apiKey" placeholder="sk-... 或 Google API Key" />
+          </label>
+          <label>
+            <span>模型</span>
+            <input v-model="self.model" placeholder="gpt-4o-mini / gemini-1.5-flash" />
+          </label>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="toggle-row">
+          <label class="checkbox pill">
+            <input type="checkbox" v-model="useRoleModel.value" />
+            <span>为地主 / 农民单独配置模型</span>
+          </label>
+          <label class="checkbox pill">
+            <input type="checkbox" v-model="useBreakerPrompt.value" />
+            <span>启用“破限”提示词</span>
+          </label>
+          <label class="checkbox pill">
+            <input type="checkbox" v-model="useSelfAi.value" />
+            <span>玩家由 AI 代打</span>
+          </label>
+        </div>
         <div v-if="useRoleModel.value" class="role-grid">
           <div class="role-card">
             <div class="block-title">地主模型</div>
@@ -142,12 +186,14 @@ const props = defineProps<{
   open: boolean
   globalConfig: ModelConfig
   roleConfig: RoleModelConfig
+  selfConfig: ModelConfig
   useRoleModel: boolean
+  useSelfAi: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'save', payload: { global: ModelConfig; role: RoleModelConfig; useRoleModel: boolean; useBreakerPrompt: boolean }): void
+  (e: 'save', payload: { global: ModelConfig; role: RoleModelConfig; self: ModelConfig; useRoleModel: boolean; useBreakerPrompt: boolean; useSelfAi: boolean }): void
 }>()
 
 const global = reactive<ModelConfig>({ baseUrl: '', apiKey: '', model: '', vendor: 'openai' })
@@ -155,16 +201,20 @@ const role = reactive<{ landlord: ModelConfig; farmer: ModelConfig }>({
   landlord: { baseUrl: '', apiKey: '', model: '', vendor: 'openai' },
   farmer: { baseUrl: '', apiKey: '', model: '', vendor: 'openai' },
 })
+const self = reactive<ModelConfig>({ baseUrl: '', apiKey: '', model: '', vendor: 'openai' })
 const useRoleModel = reactive({ value: props.useRoleModel })
 const useBreakerPrompt = reactive({ value: false })
+const useSelfAi = reactive({ value: props.useSelfAi })
 const testState = reactive<{
   global: { loading: boolean; message: string }
   landlord: { loading: boolean; message: string }
   farmer: { loading: boolean; message: string }
+  self: { loading: boolean; message: string }
 }>({
   global: { loading: false, message: '' },
   landlord: { loading: false, message: '' },
   farmer: { loading: false, message: '' },
+  self: { loading: false, message: '' },
 })
 
 const presets: Record<ModelVendor, { baseUrl: string; model: string }> = {
@@ -200,10 +250,13 @@ const syncFromProps = () => {
   Object.assign(global, props.globalConfig)
   role.landlord = { ...(props.roleConfig.landlord ?? { baseUrl: '', apiKey: '', model: '', vendor: 'openai' }) }
   role.farmer = { ...(props.roleConfig.farmer ?? { baseUrl: '', apiKey: '', model: '', vendor: 'openai' }) }
+  Object.assign(self, props.selfConfig ?? { baseUrl: '', apiKey: '', model: '', vendor: 'openai' })
   if (!global.vendor) global.vendor = 'openai'
   if (!role.landlord.vendor) role.landlord.vendor = 'openai'
   if (!role.farmer.vendor) role.farmer.vendor = 'openai'
+  if (!self.vendor) self.vendor = 'openai'
   useRoleModel.value = props.useRoleModel
+  useSelfAi.value = props.useSelfAi
 }
 
 watch(
@@ -221,12 +274,14 @@ const handleSave = () => {
       landlord: role.landlord,
       farmer: role.farmer,
     },
+    self: { ...self },
     useRoleModel: useRoleModel.value,
     useBreakerPrompt: useBreakerPrompt.value,
+    useSelfAi: useSelfAi.value,
   })
 }
 
-const testConfig = async (key: 'global' | 'landlord' | 'farmer', config: ModelConfig) => {
+const testConfig = async (key: 'global' | 'landlord' | 'farmer' | 'self', config: ModelConfig) => {
   const state = testState[key]
   state.message = ''
   if (!config.baseUrl || !config.apiKey || !config.model) {
@@ -431,6 +486,14 @@ select {
   cursor: pointer;
 }
 
+.pill {
+  border: 1px solid #d8e6de;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;
@@ -471,6 +534,13 @@ select {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.toggle-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .ghost {

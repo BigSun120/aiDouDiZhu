@@ -60,10 +60,10 @@
             <div class="meta-line" v-if="players.west.lastReason && showAiThoughts">
               <small class="muted">{{ players.west.lastReason }}</small>
             </div>
-            <div v-if="speech.west?.visible" class="speech-bubble" @click="hideSpeech('west')">
+            <div v-if="speech.west?.visible" class="speech-bubble" @click="openSpeechModal('west')">
               <p>{{ speech.west?.text }}</p>
               <button class="speech-expand" @click.stop="openSpeechModal('west')">展开</button>
-              <small class="muted">点击关闭</small>
+              <small class="muted close-link" @click.stop="hideSpeech('west')">点击关闭</small>
             </div>
           </div>
 
@@ -101,10 +101,10 @@
             <div class="meta-line" v-if="players.east.lastReason && showAiThoughts">
               <small class="muted">{{ players.east.lastReason }}</small>
             </div>
-            <div v-if="speech.east?.visible" class="speech-bubble" @click="hideSpeech('east')">
+            <div v-if="speech.east?.visible" class="speech-bubble" @click="openSpeechModal('east')">
               <p>{{ speech.east?.text }}</p>
               <button class="speech-expand" @click.stop="openSpeechModal('east')">展开</button>
-              <small class="muted">点击关闭</small>
+              <small class="muted close-link" @click.stop="hideSpeech('east')">点击关闭</small>
             </div>
           </div>
         </div>
@@ -150,10 +150,10 @@
                 {{ humanTalkUsedTurn ? '已发送' : '发送' }}
               </button>
             </div>
-            <div v-if="speech.me?.visible" class="speech-bubble" @click="hideSpeech('me')">
+            <div v-if="speech.me?.visible" class="speech-bubble my-bubble" @click="openSpeechModal('me')">
               <p>{{ speech.me?.text }}</p>
               <button class="speech-expand" @click.stop="openSpeechModal('me')">展开</button>
-              <small class="muted">点击关闭</small>
+              <small class="muted close-link" @click.stop="hideSpeech('me')">点击关闭</small>
             </div>
           </div>
         </div>
@@ -178,7 +178,8 @@
     </div>
 
     <SettingsModal :open="showSettings" :global-config="settings.global" :role-config="settings.role"
-      :use-role-model="settings.useRoleModel" @close="showSettings = false" @save="saveSettings" />
+      :self-config="settings.self" :use-role-model="settings.useRoleModel" :use-self-ai="settings.useSelfAi"
+      @close="showSettings = false" @save="saveSettings" />
 
     <div v-if="showVictoryModal" class="modal-backdrop" @click.self="showVictoryModal = false">
       <div class="modal">
@@ -375,6 +376,8 @@ const settings = reactive<{
   role: RoleModelConfig
   useRoleModel: boolean
   useBreakerPrompt: boolean
+  useSelfAi: boolean
+  self: ModelConfig
 }>({
   global: { ...defaultModel },
   role: {
@@ -383,6 +386,8 @@ const settings = reactive<{
   },
   useRoleModel: false,
   useBreakerPrompt: false,
+  useSelfAi: false,
+  self: { ...defaultModel },
 })
 
 const settingsKey = 'ai-ddz-settings'
@@ -403,9 +408,12 @@ const loadSettings = () => {
       settings.role = parsed.role
       settings.useRoleModel = parsed.useRoleModel
       settings.useBreakerPrompt = parsed.useBreakerPrompt ?? false
+      settings.useSelfAi = parsed.useSelfAi ?? false
+      settings.self = parsed.self ?? { ...defaultModel }
       if (!settings.global.vendor) settings.global.vendor = 'openai'
       if (settings.role.landlord && !settings.role.landlord.vendor) settings.role.landlord.vendor = 'openai'
       if (settings.role.farmer && !settings.role.farmer.vendor) settings.role.farmer.vendor = 'openai'
+      if (!settings.self.vendor) settings.self.vendor = 'openai'
     }
   } catch (err) {
     console.warn('无法读取本地配置', err)
@@ -466,11 +474,13 @@ const persistNames = () => {
   localStorage.setItem(namesKey, JSON.stringify(aiNames))
 }
 
-const saveSettings = (payload: { global: ModelConfig; role: RoleModelConfig; useRoleModel: boolean; useBreakerPrompt: boolean }) => {
+const saveSettings = (payload: { global: ModelConfig; role: RoleModelConfig; useRoleModel: boolean; useBreakerPrompt: boolean; self: ModelConfig; useSelfAi: boolean }) => {
   Object.assign(settings.global, payload.global)
   settings.role = payload.role
   settings.useRoleModel = payload.useRoleModel
   settings.useBreakerPrompt = payload.useBreakerPrompt
+  settings.self = payload.self
+  settings.useSelfAi = payload.useSelfAi
   showSettings.value = false
   persistSettings()
   addLog('已保存 AI 配置')
@@ -551,6 +561,7 @@ const startNewGame = async () => {
   players.west.hand = hands.west
   players.me.hand = hands.me
   players.east.hand = hands.east
+  players.me.isAI = settings.useSelfAi
   game.bottomCards = bottom
   players.west.role = players.east.role = players.me.role = 'farmer'
   game.stage = 'bidding'
@@ -708,9 +719,10 @@ const concludePlay = (seat: Seat, play: Play) => {
 }
 
 const handleAiBid = async (player: PlayerState) => {
-  const activeConfig = settings.useRoleModel
-    ? settings.role[player.role] ?? settings.global
-    : settings.global
+  let activeConfig = settings.useRoleModel ? settings.role[player.role] ?? settings.global : settings.global
+  if (player.seat === 'me' && settings.useSelfAi) {
+    activeConfig = settings.self
+  }
   if (!activeConfig.vendor) activeConfig.vendor = 'openai'
   let decision: AiBidDecision | null = null
   try {
@@ -770,9 +782,10 @@ const handleAiTurn = async (player: PlayerState) => {
   player.thinking = true
   const isOpeningTurn = !game.lastPlay
   let coercedPlay = false
-  const activeConfig = settings.useRoleModel
-    ? settings.role[player.role] ?? settings.global
-    : settings.global
+  let activeConfig = settings.useRoleModel ? settings.role[player.role] ?? settings.global : settings.global
+  if (player.seat === 'me' && settings.useSelfAi) {
+    activeConfig = settings.self
+  }
   if (!activeConfig.vendor) activeConfig.vendor = 'openai'
   player.modelLabel = activeConfig.model
   addLog(
@@ -791,20 +804,20 @@ const handleAiTurn = async (player: PlayerState) => {
         bottomCards: game.bottomCards,
         lastPlay: game.lastPlay,
         history: game.history,
-        remainingCards: {
-          west: players.west.hand.length,
-          me: players.me.hand.length,
-          east: players.east.hand.length,
-        },
-        chatLog: [...logs.value],
-        persona: aiProfiles[player.seat],
-        extraPrompt: settings.useBreakerPrompt ? JSON.stringify(breakerPack) : undefined,
-        otherPersonas: {
-          west: aiProfiles.west,
-          me: aiProfiles.me,
-          east: aiProfiles.east,
-        },
-      })
+    remainingCards: {
+      west: players.west.hand.length,
+      me: players.me.hand.length,
+      east: players.east.hand.length,
+    },
+    chatLog: [...logs.value],
+    persona: aiProfiles[player.seat],
+    extraPrompt: settings.useBreakerPrompt ? JSON.stringify(breakerPack) : undefined,
+    otherPersonas: {
+      west: aiProfiles.west,
+      me: aiProfiles.me,
+      east: aiProfiles.east,
+    },
+  })
       decision = await callLLM(activeConfig, messages)
     } else {
       addLog(
@@ -1086,6 +1099,15 @@ loadNames()
   background: #eef3ef;
   border-radius: 8px;
   padding: 2px 6px;
+  cursor: pointer;
+}
+
+.my-bubble {
+  max-width: 100%;
+  width: 100%;
+}
+
+.close-link {
   cursor: pointer;
 }
 
