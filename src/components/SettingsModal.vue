@@ -188,6 +188,7 @@ const props = defineProps<{
   roleConfig: RoleModelConfig
   selfConfig: ModelConfig
   useRoleModel: boolean
+  useBreakerPrompt: boolean
   useSelfAi: boolean
 }>()
 
@@ -256,6 +257,7 @@ const syncFromProps = () => {
   if (!role.farmer.vendor) role.farmer.vendor = 'openai'
   if (!self.vendor) self.vendor = 'openai'
   useRoleModel.value = props.useRoleModel
+  useBreakerPrompt.value = props.useBreakerPrompt
   useSelfAi.value = props.useSelfAi
 }
 

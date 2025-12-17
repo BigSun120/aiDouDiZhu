@@ -179,7 +179,7 @@
 
     <SettingsModal :open="showSettings" :global-config="settings.global" :role-config="settings.role"
       :self-config="settings.self" :use-role-model="settings.useRoleModel" :use-self-ai="settings.useSelfAi"
-      @close="showSettings = false" @save="saveSettings" />
+      :use-breaker-prompt="settings.useBreakerPrompt" @close="showSettings = false" @save="saveSettings" />
 
     <div v-if="showVictoryModal" class="modal-backdrop" @click.self="showVictoryModal = false">
       <div class="modal">
