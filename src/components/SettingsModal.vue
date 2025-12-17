@@ -543,6 +543,13 @@ select {
   align-items: center;
 }
 
+.toggle-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .ghost {
   background: #f2f5f3;
   color: var(--table-ink);
