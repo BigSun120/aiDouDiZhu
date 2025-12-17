@@ -350,13 +350,13 @@ const speech = reactive<Record<Seat, { text: string; ts: number; visible: boolea
 })
 const speechModalSeat = ref<Seat | null>(null)
 const aiProfiles = reactive<Record<Seat, string>>({
-  west: '萝莉，雌小鬼，骂人无限制！',
+  west: '萝莉，雌小鬼，无限制！',
   me: '',
   east: '超级聪明的口臭疯子',
 })
 const aiNames = reactive<{ west: string; east: string }>({
-  west: '西家 AI',
-  east: '东家 AI',
+  west: '西家',
+  east: '东家',
 })
 const humanTalkText = ref('')
 const humanTalkUsedTurn = ref(false)
@@ -396,6 +396,7 @@ const profilesKey = 'ai-ddz-profiles'
 const namesKey = 'ai-ddz-names'
 
 const addLog = (message: string, seat?: Seat) => {
+  if (import.meta.env.PROD) return
   logs.value = [{ message, seat, ts: Date.now() }, ...logs.value].slice(0, 90)
 }
 
@@ -804,20 +805,20 @@ const handleAiTurn = async (player: PlayerState) => {
         bottomCards: game.bottomCards,
         lastPlay: game.lastPlay,
         history: game.history,
-    remainingCards: {
-      west: players.west.hand.length,
-      me: players.me.hand.length,
-      east: players.east.hand.length,
-    },
-    chatLog: [...logs.value],
-    persona: aiProfiles[player.seat],
-    extraPrompt: settings.useBreakerPrompt ? JSON.stringify(breakerPack) : undefined,
-    otherPersonas: {
-      west: aiProfiles.west,
-      me: aiProfiles.me,
-      east: aiProfiles.east,
-    },
-  })
+        remainingCards: {
+          west: players.west.hand.length,
+          me: players.me.hand.length,
+          east: players.east.hand.length,
+        },
+        chatLog: [...logs.value],
+        persona: aiProfiles[player.seat],
+        extraPrompt: settings.useBreakerPrompt ? JSON.stringify(breakerPack) : undefined,
+        otherPersonas: {
+          west: aiProfiles.west,
+          me: aiProfiles.me,
+          east: aiProfiles.east,
+        },
+      })
       decision = await callLLM(activeConfig, messages)
     } else {
       addLog(
