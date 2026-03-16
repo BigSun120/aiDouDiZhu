@@ -2,7 +2,7 @@
 
 一个基于 Vue + TypeScript 的纯前端斗地主小游戏，直接在浏览器中调用大模型完成叫分与出牌决策，无需后端。
 
-## 立即体验
+## 立即体验（需要自备api接口）
 
 https://bigsun120.github.io/aiDouDiZhu/
 
